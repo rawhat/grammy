@@ -19,7 +19,7 @@ import gleam/string
 import grammy
 
 pub fn main() {
-  let assert Ok(_supervisor) =
+  let assert Ok(_server) =
     grammy.new(init: fn() { #(Nil, None) }, handler: fn(msg, conn, state) {
       case msg {
         grammy.Packet(address, port, message) -> {

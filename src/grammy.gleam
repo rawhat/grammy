@@ -15,6 +15,10 @@ pub opaque type UdpServer {
   UdpServer(supervisor: Subject(supervisor.Message))
 }
 
+pub fn get_supervisor(server: UdpServer) -> Subject(supervisor.Message) {
+  server.supervisor
+}
+
 pub fn start(
   builder: Builder(user_state, user_message),
 ) -> Result(UdpServer, actor.StartError) {
