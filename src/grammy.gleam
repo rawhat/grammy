@@ -4,6 +4,7 @@ import gleam/dynamic
 import gleam/erlang/atom
 import gleam/erlang/process.{type Selector, type Subject}
 import gleam/int
+import gleam/io
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 import gleam/otp/supervisor
@@ -122,6 +123,12 @@ pub fn start(
           },
         ),
       )
+      |> result.map(fn(subj) {
+        io.println(
+          "UDP socket listening on port " <> int.to_string(builder.port),
+        )
+        subj
+      })
     })
 
   supervisor.start(fn(children) { supervisor.add(children, worker) })
