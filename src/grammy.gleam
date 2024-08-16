@@ -193,6 +193,20 @@ pub fn new(
   )
 }
 
+pub fn on_close(
+  builder: Builder(user_state, user_message),
+  on_close: fn(user_state) -> Nil,
+) -> Builder(user_state, user_message) {
+  Builder(..builder, on_close: on_close)
+}
+
+pub fn port(
+  builder: Builder(user_state, user_message),
+  port: Int,
+) -> Builder(user_state, user_message) {
+  Builder(..builder, port: port)
+}
+
 pub type Message(user_message) {
   User(message: user_message)
   Packet(ip_address: IpAddress, port: Int, data: BitArray)

@@ -2,7 +2,7 @@ import gleam/bytes_builder
 import gleam/erlang/process
 import gleam/int
 import gleam/io
-import gleam/option.{None, Some}
+import gleam/option.{Some}
 import gleam/otp/actor
 import gleam/string
 import grammy
@@ -58,6 +58,7 @@ pub fn main() {
         }
       },
     )
+    |> grammy.port(3000)
     |> grammy.start
 
   let sender = process.select_forever(selector)
