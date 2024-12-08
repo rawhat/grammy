@@ -1,4 +1,4 @@
-import gleam/bytes_builder.{type BytesBuilder}
+import gleam/bytes_tree.{type BytesTree}
 import gleam/dict.{type Dict}
 import gleam/dynamic
 import gleam/erlang/atom
@@ -237,7 +237,7 @@ pub fn send_to(
   connection: Connection,
   address: IpAddress,
   port: Int,
-  data: BytesBuilder,
+  data: BytesTree,
 ) -> Result(Nil, Nil) {
   udp_send(connection.socket, address, port, data)
 }
@@ -250,7 +250,7 @@ pub fn udp_send(
   socket: Socket,
   host: IpAddress,
   port: Int,
-  packet: BytesBuilder,
+  packet: BytesTree,
 ) -> Result(Nil, Nil)
 
 @external(erlang, "grammy_ffi", "set_active")
