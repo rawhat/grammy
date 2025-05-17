@@ -1,6 +1,6 @@
 import gleam/bytes_tree.{type BytesTree}
 import gleam/dict.{type Dict}
-import gleam/dynamic
+import gleam/dynamic/decode
 import gleam/erlang/atom
 import gleam/erlang/process.{type Selector, type Subject}
 import gleam/int
@@ -147,11 +147,16 @@ fn udp_message_selector() -> Selector(InternalMessage(user_message)) {
     atom.create_from_string("udp"),
     fn(_socket, ip_address, port, message) {
       let ip =
-        dynamic.tuple4(dynamic.int, dynamic.int, dynamic.int, dynamic.int)(
-          ip_address,
-        )
-      let port = dynamic.int(port)
-      let data = dynamic.bit_array(message)
+        {
+          use a <- decode.field(0, decode.int)
+          use b <- decode.field(1, decode.int)
+          use c <- decode.field(2, decode.int)
+          use d <- decode.field(3, decode.int)
+          decode.success(#(a, b, c, d))
+        }
+        |> decode.run(ip_address, _)
+      let port = decode.run(port, decode.int)
+      let data = decode.run(message, decode.bit_array)
 
       case ip, port, data {
         Ok(ip), Ok(port), Ok(data) -> {

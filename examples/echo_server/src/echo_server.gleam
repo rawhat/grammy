@@ -1,4 +1,4 @@
-import gleam/bytes_builder
+import gleam/bytes_tree
 import gleam/erlang/process
 import gleam/int
 import gleam/io
@@ -41,7 +41,7 @@ pub fn main() {
                 conn,
                 address,
                 port,
-                bytes_builder.from_bit_array(message),
+                bytes_tree.from_bit_array(message),
               )
             actor.continue(state)
           }
@@ -51,7 +51,7 @@ pub fn main() {
                 conn,
                 #(127, 0, 0, 1),
                 1234,
-                bytes_builder.from_bit_array(data),
+                bytes_tree.from_bit_array(data),
               )
             actor.continue(state)
           }
