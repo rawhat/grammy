@@ -4,135 +4,141 @@ import gleam/dynamic/decode
 import gleam/erlang/atom
 import gleam/erlang/process.{type Selector, type Subject}
 import gleam/int
-import gleam/io
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
-import gleam/otp/supervisor
 import gleam/result
 import gleam/string
 import logging
 
-pub opaque type UdpServer {
-  UdpServer(supervisor: Subject(supervisor.Message))
+pub opaque type Next(state, user_message) {
+  Continue(state, Option(Selector(user_message)))
+  NormalStop
+  AbnormalStop(reason: String)
 }
 
-pub fn get_supervisor(server: UdpServer) -> Subject(supervisor.Message) {
-  server.supervisor
+pub fn continue(state: state) -> Next(state, user_message) {
+  Continue(state, None)
+}
+
+pub fn with_selector(
+  next: Next(state, user_message),
+  selector: Selector(user_message),
+) -> Next(state, user_message) {
+  case next {
+    Continue(state, _) -> Continue(state, Some(selector))
+    _ -> next
+  }
+}
+
+pub fn stop() -> Next(state, user_message) {
+  NormalStop
+}
+
+pub fn stop_abnormal(reason: String) -> Next(state, user_message) {
+  AbnormalStop(reason)
 }
 
 pub fn start(
   builder: Builder(user_state, user_message),
-) -> Result(UdpServer, actor.StartError) {
+) -> actor.StartResult(Subject(user_message)) {
   let ten_megabytes = 10 * 1024 * 1024
 
-  let worker =
-    supervisor.worker(fn(_arg) {
-      actor.start_spec(
-        actor.Spec(
-          init: fn() {
-            case
-              udp_open(builder.port, [
-                Binary,
-                Active(Once),
-                Sndbuf(ten_megabytes),
-                Recbuf(ten_megabytes),
-              ])
-            {
-              Error(reason) ->
-                actor.Failed(
-                  "Failed to open UDP socket: " <> string.inspect(reason),
-                )
-              Ok(socket) -> {
-                let #(user_state, user_selector) = builder.on_init()
-                let message_selector = udp_message_selector()
-                let selector = case user_selector {
-                  Some(user) -> {
-                    user
-                    |> process.map_selector(InternalUser)
-                    |> process.merge_selector(message_selector)
-                  }
-                  None -> message_selector
-                }
-                actor.Ready(
-                  State(socket: socket, user: user_state, clients: dict.new()),
-                  selector,
-                )
+  actor.new_with_initialiser(500, fn(_subj) {
+    let user_subj = process.new_subject()
+    let res =
+      udp_open(builder.port, [
+        Binary,
+        Active(Once),
+        Sndbuf(ten_megabytes),
+        Recbuf(ten_megabytes),
+      ])
+    case res {
+      Error(reason) ->
+        Error("Failed to open UDP socket: " <> string.inspect(reason))
+      Ok(socket) -> {
+        let #(user_state, user_selector) = builder.on_init()
+        let default_selector =
+          process.select(process.new_selector(), user_subj)
+          |> process.map_selector(InternalUser)
+        let message_selector = udp_message_selector()
+        let selector = case user_selector {
+          Some(user) -> {
+            user
+            |> process.map_selector(InternalUser)
+            |> process.merge_selector(message_selector)
+            |> process.merge_selector(default_selector)
+          }
+          None -> process.merge_selector(message_selector, default_selector)
+        }
+        State(socket: socket, user: user_state, clients: dict.new())
+        |> actor.initialised
+        |> actor.selecting(selector)
+        |> actor.returning(user_subj)
+        |> Ok
+      }
+    }
+  })
+  |> actor.on_message(fn(state, message) {
+    let conn = Connection(socket: state.socket)
+    case message {
+      Unknown -> {
+        logging.log(logging.Warning, "Discarding unknown message type")
+        actor.continue(state)
+      }
+      UdpPacket(address, port, data) -> {
+        let resp =
+          builder.handler(Packet(address, port, data), conn, state.user)
+        case resp {
+          Continue(new_state, user_selector) -> {
+            state.socket
+            |> set_active
+            |> result.map(fn(_nil) {
+              let selector =
+                option.map(user_selector, fn(selector) {
+                  selector
+                  |> process.map_selector(InternalUser)
+                  |> process.merge_selector(udp_message_selector())
+                })
+              let next = actor.continue(State(..state, user: new_state))
+              case selector {
+                Some(selector) -> actor.with_selector(next, selector)
+                _ -> next
               }
-            }
-          },
-          init_timeout: 500,
-          loop: fn(message, state) {
-            let conn = Connection(socket: state.socket)
-            case message {
-              Unknown -> {
-                logging.log(logging.Warning, "Discarding unknown message type")
-                actor.continue(state)
-              }
-              UdpPacket(address, port, data) -> {
-                let resp =
-                  builder.handler(Packet(address, port, data), conn, state.user)
-                case resp {
-                  actor.Continue(new_state, user_selector) -> {
-                    state.socket
-                    |> set_active
-                    |> result.map(fn(_nil) {
-                      let selector =
-                        option.map(user_selector, fn(selector) {
-                          selector
-                          |> process.map_selector(InternalUser)
-                          |> process.merge_selector(udp_message_selector())
-                        })
-                      actor.Continue(State(..state, user: new_state), selector)
-                    })
-                    |> result.map_error(fn(err) {
-                      logging.log(
-                        logging.Error,
-                        "Failed to set UDP socket active: "
-                          <> string.inspect(err),
-                      )
-                      actor.Stop(process.Abnormal(
-                        "Failed to set UDP socket active",
-                      ))
-                    })
-                    |> result.unwrap_both
-                  }
-                  actor.Stop(reason) -> {
-                    actor.Stop(reason)
-                  }
-                }
-              }
-              InternalUser(user) -> {
-                case builder.handler(User(user), conn, state.user) {
-                  actor.Continue(new_state, None) -> {
-                    actor.continue(State(..state, user: new_state))
-                  }
-                  actor.Continue(new_state, Some(new_user_selector)) -> {
-                    actor.Continue(
-                      State(..state, user: new_state),
-                      Some(
-                        new_user_selector
-                        |> process.map_selector(InternalUser)
-                        |> process.merge_selector(udp_message_selector()),
-                      ),
-                    )
-                  }
-                  actor.Stop(reason) -> actor.Stop(reason)
-                }
-              }
-            }
-          },
-        ),
-      )
-      |> result.map(fn(subj) {
-        io.println(
-          "UDP socket listening on port " <> int.to_string(builder.port),
-        )
-        subj
-      })
-    })
-
-  supervisor.start(fn(children) { supervisor.add(children, worker) })
-  |> result.map(UdpServer)
+            })
+            |> result.map_error(fn(err) {
+              logging.log(
+                logging.Error,
+                "Failed to set UDP socket active: " <> string.inspect(err),
+              )
+              actor.stop_abnormal("Failed to set UDP socket active")
+            })
+            |> result.unwrap_both
+          }
+          NormalStop -> actor.stop()
+          AbnormalStop(reason) -> actor.stop_abnormal(reason)
+        }
+      }
+      InternalUser(user) -> {
+        case builder.handler(User(user), conn, state.user) {
+          Continue(new_state, None) -> {
+            actor.continue(State(..state, user: new_state))
+          }
+          Continue(new_state, Some(new_user_selector)) -> {
+            State(..state, user: new_state)
+            |> actor.continue
+            |> actor.with_selector(
+              new_user_selector
+              |> process.map_selector(InternalUser)
+              |> process.merge_selector(udp_message_selector()),
+            )
+          }
+          NormalStop -> actor.stop()
+          AbnormalStop(reason) -> actor.stop_abnormal(reason)
+        }
+      }
+    }
+  })
+  |> actor.start
 }
 
 type InternalMessage(user_message) {
@@ -143,29 +149,23 @@ type InternalMessage(user_message) {
 
 fn udp_message_selector() -> Selector(InternalMessage(user_message)) {
   process.new_selector()
-  |> process.selecting_record5(
-    atom.create_from_string("udp"),
-    fn(_socket, ip_address, port, message) {
-      let ip =
-        {
-          use a <- decode.field(0, decode.int)
-          use b <- decode.field(1, decode.int)
-          use c <- decode.field(2, decode.int)
-          use d <- decode.field(3, decode.int)
-          decode.success(#(a, b, c, d))
-        }
-        |> decode.run(ip_address, _)
-      let port = decode.run(port, decode.int)
-      let data = decode.run(message, decode.bit_array)
-
-      case ip, port, data {
-        Ok(ip), Ok(port), Ok(data) -> {
-          UdpPacket(ip, port, data)
-        }
-        _, _, _ -> Unknown
+  |> process.select_record(atom.create("udp"), 3, fn(dyn) {
+    let decoder = {
+      let ip = {
+        use a <- decode.field(0, decode.int)
+        use b <- decode.field(1, decode.int)
+        use c <- decode.field(2, decode.int)
+        use d <- decode.field(3, decode.int)
+        decode.success(#(a, b, c, d))
       }
-    },
-  )
+      use ip_address <- decode.field(1, ip)
+      use port <- decode.field(2, decode.int)
+      use data <- decode.field(3, decode.bit_array)
+      decode.success(UdpPacket(ip_address, port, data))
+    }
+    let assert Ok(msg) = decode.run(dyn, decoder)
+    msg
+  })
 }
 
 @internal
@@ -206,7 +206,7 @@ pub type Message(user_message) {
 
 pub type Handler(user_state, user_message) =
   fn(Message(user_message), Connection, user_state) ->
-    actor.Next(user_message, user_state)
+    Next(user_state, user_message)
 
 pub opaque type Connection {
   Connection(socket: Socket)

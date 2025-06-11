@@ -3,7 +3,6 @@ import gleam/erlang/process
 import gleam/int
 import gleam/io
 import gleam/option.{Some}
-import gleam/otp/actor
 import gleam/string
 import grammy
 
@@ -15,7 +14,7 @@ pub fn main() {
   let return = process.new_subject()
   let selector =
     process.new_selector()
-    |> process.selecting(return, fn(msg) { msg })
+    |> process.select(return)
 
   let assert Ok(_supervisor) =
     grammy.new(
@@ -23,7 +22,7 @@ pub fn main() {
         let subj = process.new_subject()
         let selector =
           process.new_selector()
-          |> process.selecting(subj, fn(msg) { msg })
+          |> process.select(subj)
         #(Nil, Some(selector))
       },
       handler: fn(msg, conn, state) {
@@ -43,7 +42,7 @@ pub fn main() {
                 port,
                 bytes_tree.from_bit_array(message),
               )
-            actor.continue(state)
+            grammy.continue(state)
           }
           grammy.User(Broadcast(data)) -> {
             let assert Ok(_) =
@@ -53,7 +52,7 @@ pub fn main() {
                 1234,
                 bytes_tree.from_bit_array(data),
               )
-            actor.continue(state)
+            grammy.continue(state)
           }
         }
       },
@@ -61,7 +60,11 @@ pub fn main() {
     |> grammy.port(3000)
     |> grammy.start
 
-  let sender = process.select_forever(selector)
+  echo "hi mom"
+
+  let sender = process.selector_receive_forever(selector)
+
+  echo "we here"
 
   process.send(sender, Broadcast(<<"Hello, world!":utf8>>))
 

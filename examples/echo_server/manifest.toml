@@ -2,17 +2,17 @@
 # You typically do not need to edit this file
 
 packages = [
-  { name = "gleam_erlang", version = "0.34.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_erlang", source = "hex", outer_checksum = "0C38F2A128BAA0CEF17C3000BD2097EB80634E239CE31A86400C4416A5D0FDCC" },
-  { name = "gleam_otp", version = "0.16.1", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_stdlib"], otp_app = "gleam_otp", source = "hex", outer_checksum = "50DA1539FC8E8FA09924EB36A67A2BBB0AD6B27BCDED5A7EF627057CF69D035E" },
+  { name = "gleam_erlang", version = "1.0.0-rc1", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_erlang", source = "hex", outer_checksum = "6E0CF4E1F66E2C9226B7554589544F00F12CE14858440EB1BF7EFDACDE1BBC64" },
+  { name = "gleam_otp", version = "1.0.0-rc3", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_stdlib"], otp_app = "gleam_otp", source = "hex", outer_checksum = "317733C0DFE6223FE2988D5B30294810EED25B8C3AE0B54D44D8D708DB4070DA" },
   { name = "gleam_stdlib", version = "0.60.0", build_tools = ["gleam"], requirements = [], otp_app = "gleam_stdlib", source = "hex", outer_checksum = "621D600BB134BC239CB2537630899817B1A42E60A1D46C5E9F3FAE39F88C800B" },
-  { name = "gleeunit", version = "1.3.1", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleeunit", source = "hex", outer_checksum = "A7DD6C07B7DA49A6E28796058AA89E651D233B357D5607006D70619CD89DAAAB" },
-  { name = "grammy", version = "0.3.1", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_otp", "gleam_stdlib", "logging"], source = "local", path = "../.." },
+  { name = "gleeunit", version = "1.4.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleeunit", source = "hex", outer_checksum = "12A8A2B510D7063547CD73AE5345544AE92124247A82F46B05F5B0913EE28BC8" },
+  { name = "grammy", version = "0.3.2", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_otp", "gleam_stdlib", "logging"], source = "local", path = "../.." },
   { name = "logging", version = "1.3.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "logging", source = "hex", outer_checksum = "1098FBF10B54B44C2C7FDF0B01C1253CAFACDACABEFB4B0D027803246753E06D" },
 ]
 
 [requirements]
-gleam_erlang = { version = ">= 0.25.0 and < 1.0.0" }
-gleam_otp = { version = ">= 0.10.0 and < 1.0.0" }
+gleam_erlang = { version = "1.0.0-rc1" }
+gleam_otp = { version = "1.0.0-rc3" }
 gleam_stdlib = { version = ">= 0.34.0 and < 2.0.0" }
 gleeunit = { version = ">= 1.0.0 and < 2.0.0" }
 grammy = { path = "../../" }
