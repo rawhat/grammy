@@ -149,7 +149,7 @@ type InternalMessage(user_message) {
 
 fn udp_message_selector() -> Selector(InternalMessage(user_message)) {
   process.new_selector()
-  |> process.select_record(atom.create("udp"), 3, fn(dyn) {
+  |> process.select_record(atom.create("udp"), 4, fn(dyn) {
     let decoder = {
       let ip = {
         use a <- decode.field(0, decode.int)
@@ -158,9 +158,9 @@ fn udp_message_selector() -> Selector(InternalMessage(user_message)) {
         use d <- decode.field(3, decode.int)
         decode.success(#(a, b, c, d))
       }
-      use ip_address <- decode.field(1, ip)
-      use port <- decode.field(2, decode.int)
-      use data <- decode.field(3, decode.bit_array)
+      use ip_address <- decode.field(2, ip)
+      use port <- decode.field(3, decode.int)
+      use data <- decode.field(4, decode.bit_array)
       decode.success(UdpPacket(ip_address, port, data))
     }
     let assert Ok(msg) = decode.run(dyn, decoder)
